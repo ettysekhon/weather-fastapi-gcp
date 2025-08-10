@@ -6,8 +6,11 @@ readme = "README.md"
 authors = [
     { name = "Etty Sekhon", email = "etty.sekhon@gmail.com" }
 ]
-requires-python = ">=3.12"
-dependencies = []
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.116.1",
+    "uvicorn>=0.35.0",
+]
 
 [project.scripts]
 weather-fastapi-gcp = "weather_fastapi_gcp:main"
@@ -21,12 +24,10 @@ packages = [{ include = "weather_fastapi_gcp", from = "src" }]
 [dependency-groups]
 dev = [
     "black>=25.1.0",
-    "fastapi>=0.116.1",
     "isort>=6.0.1",
     "pre-commit>=4.2.0",
     "python-dotenv>=1.1.1",
     "ruff>=0.12.8",
-    "uvicorn>=0.35.0",
 ]
 
 [tool.black]
