@@ -61,6 +61,15 @@ jobs:
         working-directory: ./terraform
         run: terraform init
 
+      - name: Terraform Import pre-existing AR repo (idempotent)
+        working-directory: ./terraform
+        run: |
+          set -euo pipefail
+          REPO_PATH="projects/${PROJECT_ID}/locations/${REGION}/repositories/${REPO_ID}"
+          # Import if not already in state; ignore if it is
+          terraform state show google_artifact_registry_repository.repo >/dev/null 2>&1 || \
+            terraform import google_artifact_registry_repository.repo "${REPO_PATH}" || true
+
       - name: Terraform Apply
         working-directory: ./terraform
         run: |

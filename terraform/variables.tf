@@ -47,3 +47,9 @@ variable "github_repository" {
   description = "GitHub repo in format owner/repo"
   type        = string
 }
+
+variable "manage_deployer_sa" {
+  description = "Whether to create the deployer service account in this stack"
+  type        = bool
+  default     = false
+}

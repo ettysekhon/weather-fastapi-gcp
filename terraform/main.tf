@@ -40,6 +40,7 @@ resource "google_service_account" "runtime" {
 
 # Deployer Service Account for GitHub Actions
 resource "google_service_account" "deployer" {
+  count        = var.manage_deployer_sa ? 1 : 0
   project      = var.project_id
   account_id   = "${var.service_name}-deployer"
   display_name = "${var.service_name} deployer"
