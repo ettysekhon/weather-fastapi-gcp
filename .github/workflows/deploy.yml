@@ -1,0 +1,89 @@
+name: CI/CD - Build & Deploy to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Create (if missing) and load .env.cicd into environment
+      - name: Create & Load .env.cicd
+        shell: bash
+        run: |
+          if [[ ! -f .env.cicd ]]; then
+            echo "::warning::.env.cicd not found, creating from secrets"
+            cat > .env.cicd <<'EOF'
+            PROJECT_NUMBER=${{ secrets.PROJECT_NUMBER }}
+            PROJECT_ID=${{ secrets.PROJECT_ID }}
+            REGION=${{ secrets.REGION }}
+            SERVICE_NAME=${{ secrets.SERVICE_NAME }}
+            REPO_ID=${{ secrets.REPO_ID }}
+            DEPLOYER_SA=${{ secrets.DEPLOYER_SA }}
+            TF_VERSION=${{ secrets.TF_VERSION }}
+            EOF
+          fi
+
+          # Export each non-comment, non-empty line to GITHUB_ENV
+          while IFS='=' read -r key value; do
+            [[ -z "$key" || "$key" =~ ^# ]] && continue
+            echo "${key}=${value}" >> "$GITHUB_ENV"
+          done < .env.cicd
+
+          # Derived values
+          echo "WIF_PROVIDER=projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider" >> "$GITHUB_ENV"
+          echo "IMAGE_TAG=v${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+          echo "IMAGE_URI=${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_ID}/${SERVICE_NAME}:${IMAGE_TAG}" >> "$GITHUB_ENV"
+
+      # Auth to GCP with WIF (no keys)
+      - name: Google Auth (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SA }}
+
+      # Configure Docker for Artifact Registry
+      - name: Configure Docker for AR
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      # Build & push container (linux/amd64 to match Cloud Run)
+      - name: Build & Push Image
+        run: |
+          docker buildx build --platform linux/amd64 -t "${IMAGE_URI}" .
+          docker push "${IMAGE_URI}"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: ./terraform
+        run: |
+          terraform apply -auto-approve \
+            -var="project_id=${PROJECT_ID}" \
+            -var="region=${REGION}" \
+            -var="service_name=${SERVICE_NAME}" \
+            -var="repo_id=${REPO_ID}" \
+            -var="image_tag=${IMAGE_TAG}" \
+            -var="impersonate_service_account=${DEPLOYER_SA}" \
+            -var="allow_unauthenticated=true"
+
+      - name: Show Cloud Run URL
+        working-directory: ./terraform
+        run: terraform output cloud_run_uri

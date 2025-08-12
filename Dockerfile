@@ -1,24 +1,37 @@
-FROM python:3.13-alpine
-
-RUN apk add --no-cache curl ca-certificates tini
-
-RUN pip install uv==0.8.8
-
+# Builder Stage
+FROM python:3.13-alpine AS builder
 WORKDIR /app
 
-COPY pyproject.toml uv.lock README.md ./
+RUN apk add --no-cache ca-certificates gcc musl-dev libffi-dev \
+    && update-ca-certificates
 
-RUN uv sync --frozen --no-install-project
+RUN python3 -m venv /root/.local
+ENV PATH=/root/.local/bin:$PATH
 
-COPY src/ ./src/
+COPY pyproject.toml uv.lock ./
+COPY src ./src
 
-RUN uv sync --frozen --no-dev
+RUN pip install --upgrade pip --no-cache-dir \
+    && pip install uv \
+    && uv sync --frozen --no-dev
+# Final Stage
+FROM python:3.13-alpine
+WORKDIR /app
 
-ENV PATH="/app/.venv/bin:${PATH}"
+RUN apk add --no-cache ca-certificates libffi && update-ca-certificates
 
-ENV PORT=8080
+RUN pip install --no-cache-dir uv==0.8.8
+
+ENV UV_PROJECT_ENVIRONMENT=/root/.local
+ENV PATH=/root/.local/bin:$PATH
+
+COPY --from=builder /app/.venv /root/.local
+COPY --from=builder /app/pyproject.toml /app/uv.lock ./
+
+COPY src /app/src
+
+ENV PYTHONPATH=/app/src
+
 EXPOSE 8080
 
-ENTRYPOINT ["/sbin/tini", "--"]
-
-CMD ["uvicorn", "weather_fastapi_gcp.main:app", "--host", "0.0.0.0", "--port", "8080"]
+ENTRYPOINT ["python", "-m", "weather_fastapi_gcp.run"]
