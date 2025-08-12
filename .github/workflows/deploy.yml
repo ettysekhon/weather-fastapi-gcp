@@ -18,9 +18,11 @@ jobs:
         uses: actions/checkout@v4
 
       # Create (if missing) and load .env.cicd into environment
-      - name: Create & Load .env.cicd
+      - name: Create & load .env.cicd from secrets (if missing)
         shell: bash
         run: |
+          set -euo pipefail
+
           if [[ ! -f .env.cicd ]]; then
             echo "::warning::.env.cicd not found, creating from secrets"
             cat > .env.cicd <<'EOF'
@@ -34,11 +36,11 @@ jobs:
             EOF
           fi
 
-          # Export each non-comment, non-empty line to GITHUB_ENV
-          while IFS='=' read -r key value; do
-            [[ -z "$key" || "$key" =~ ^# ]] && continue
-            echo "${key}=${value}" >> "$GITHUB_ENV"
-          done < .env.cicd
+          # Export to future steps
+          grep -Ev '^\s*($|#)' .env.cicd >> "$GITHUB_ENV"
+
+          # Load into current shell for derived values
+          set -a; source .env.cicd; set +a
 
           # Derived values
           echo "WIF_PROVIDER=projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider" >> "$GITHUB_ENV"
