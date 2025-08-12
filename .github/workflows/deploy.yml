@@ -17,35 +17,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Create (if missing) and load .env.cicd into environment
-      - name: Create & load .env.cicd from secrets (if missing)
+      - name: Load env from secrets
         shell: bash
         run: |
-          set -euo pipefail
-
-          if [[ ! -f .env.cicd ]]; then
-            echo "::warning::.env.cicd not found, creating from secrets"
-            cat > .env.cicd <<'EOF'
-            PROJECT_NUMBER=${{ secrets.PROJECT_NUMBER }}
-            PROJECT_ID=${{ secrets.PROJECT_ID }}
-            REGION=${{ secrets.REGION }}
-            SERVICE_NAME=${{ secrets.SERVICE_NAME }}
-            REPO_ID=${{ secrets.REPO_ID }}
-            DEPLOYER_SA=${{ secrets.DEPLOYER_SA }}
-            TF_VERSION=${{ secrets.TF_VERSION }}
-            EOF
-          fi
-
-          # Export to future steps
-          grep -Ev '^\s*($|#)' .env.cicd >> "$GITHUB_ENV"
-
-          # Load into current shell for derived values
-          set -a; source .env.cicd; set +a
+          # Base values from repo secrets
+          echo "PROJECT_NUMBER=${{ secrets.PROJECT_NUMBER }}" >> "$GITHUB_ENV"
+          echo "PROJECT_ID=${{ secrets.PROJECT_ID }}"         >> "$GITHUB_ENV"
+          echo "REGION=${{ secrets.REGION }}"                 >> "$GITHUB_ENV"
+          echo "SERVICE_NAME=${{ secrets.SERVICE_NAME }}"     >> "$GITHUB_ENV"
+          echo "REPO_ID=${{ secrets.REPO_ID }}"               >> "$GITHUB_ENV"
+          echo "DEPLOYER_SA=${{ secrets.DEPLOYER_SA }}"       >> "$GITHUB_ENV"
+          echo "TF_VERSION=${{ secrets.TF_VERSION }}"         >> "$GITHUB_ENV"
 
           # Derived values
-          echo "WIF_PROVIDER=projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider" >> "$GITHUB_ENV"
+          echo "WIF_PROVIDER=projects/${{ secrets.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider" >> "$GITHUB_ENV"
           echo "IMAGE_TAG=v${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
-          echo "IMAGE_URI=${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_ID}/${SERVICE_NAME}:${IMAGE_TAG}" >> "$GITHUB_ENV"
+          echo "IMAGE_URI=${{ secrets.REGION }}-docker.pkg.dev/${{ secrets.PROJECT_ID }}/${{ secrets.REPO_ID }}/${{ secrets.SERVICE_NAME }}:v${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
 
       # Auth to GCP with WIF (no keys)
       - name: Google Auth (WIF)
