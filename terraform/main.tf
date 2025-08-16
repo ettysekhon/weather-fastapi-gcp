@@ -8,6 +8,11 @@ data "google_project" "this" {
   project_id = var.project_id
 }
 
+locals {
+  have_impersonator = var.impersonate_service_account != ""
+  have_wif_binding  = local.have_impersonator && var.github_repository != ""
+}
+
 # Enable required APIs
 resource "google_project_service" "required" {
   for_each = toset([
@@ -52,17 +57,17 @@ resource "google_service_account" "deployer" {
 
 # IAM roles for deployer SA (using impersonate_service_account)
 resource "google_project_iam_member" "deployer_iam_roles" {
-  for_each = toset([
+  for_each = local.have_impersonator ? toset([
     "roles/run.admin",
     "roles/artifactregistry.admin",
     "roles/iam.serviceAccountUser",
     "roles/serviceusage.serviceUsageAdmin",
-  ])
+  ]) : {}
+
   project = var.project_id
   role    = each.key
   member  = "serviceAccount:${var.impersonate_service_account}"
 }
-
 # Workload Identity Pool for GitHub Actions
 resource "google_iam_workload_identity_pool" "github" {
   workload_identity_pool_id = "github-actions-pool"
@@ -84,8 +89,9 @@ resource "google_iam_workload_identity_pool_provider" "github" {
   }
 }
 
-# Allow GitHub Actions WIF to impersonate the deployer SA
+# WIF can impersonate the SA (only when both are set)
 resource "google_service_account_iam_member" "github_impersonate" {
+  count              = local.have_wif_binding ? 1 : 0
   service_account_id = "projects/${var.project_id}/serviceAccounts/${var.impersonate_service_account}"
   role               = "roles/iam.workloadIdentityUser"
   member             = "principalSet://iam.googleapis.com/projects/${data.google_project.this.number}/locations/global/workloadIdentityPools/github-actions-pool/attribute.repository/${var.github_repository}"

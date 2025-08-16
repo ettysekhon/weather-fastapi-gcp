@@ -72,7 +72,9 @@ jobs:
 
       - name: Terraform Apply
         working-directory: ./terraform
+        shell: bash
         run: |
+          set -euo pipefail
           terraform apply -auto-approve \
             -var="project_id=${PROJECT_ID}" \
             -var="region=${REGION}" \
@@ -81,6 +83,7 @@ jobs:
             -var="image_tag=${IMAGE_TAG}" \
             -var="allow_unauthenticated=true" \
             -var="github_repository=${{ github.repository }}"
+          # NOTE: no impersonate var here in CI (WIF creds are used directly)
 
       - name: Capture Terraform Outputs
         id: tf-outputs

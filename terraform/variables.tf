@@ -54,10 +54,7 @@ variable "allow_unauthenticated" {
 variable "github_repository" {
   description = "GitHub repo in format owner/repo"
   type        = string
-  validation {
-    condition     = can(regex("^[^/]+/[^/]+$", var.github_repository))
-    error_message = "github_repository must be in the format 'owner/repo'."
-  }
+  default     = ""
 }
 
 variable "manage_deployer_sa" {
