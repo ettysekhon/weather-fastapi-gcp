@@ -9,10 +9,10 @@ data "google_project" "this" {
 }
 
 locals {
-  impersonator_sa   = trimspace(nonsensitive(var.impersonate_service_account))
+  impersonator_sa   = trimspace(var.impersonate_service_account)
   have_impersonator = length(local.impersonator_sa) > 0
 
-  gh_repo          = trimspace(nonsensitive(var.github_repository))
+  gh_repo          = trimspace(var.github_repository)
   have_wif_binding = local.have_impersonator && length(local.gh_repo) > 0
 }
 
@@ -65,12 +65,13 @@ resource "google_project_iam_member" "deployer_iam_roles" {
     "roles/artifactregistry.admin",
     "roles/iam.serviceAccountUser",
     "roles/serviceusage.serviceUsageAdmin",
-  ]) : toset([]) # must be an empty set, not {}
+  ]) : toset([])
 
   project = var.project_id
   role    = each.key
   member  = "serviceAccount:${local.impersonator_sa}"
 }
+
 # Workload Identity Pool for GitHub Actions
 resource "google_iam_workload_identity_pool" "github" {
   workload_identity_pool_id = "github-actions-pool"
