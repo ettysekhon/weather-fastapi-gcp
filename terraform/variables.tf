@@ -1,12 +1,20 @@
 variable "project_id" {
   description = "GCP project ID"
   type        = string
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]$", var.project_id))
+    error_message = "project_id must be a valid GCP project ID (lowercase, 6–30 chars, start with letter)."
+  }
 }
 
 variable "region" {
   description = "GCP region"
   type        = string
   default     = "us-central1"
+  validation {
+    condition     = can(regex("^[a-z]+-[a-z0-9]+[0-9]$", var.region))
+    error_message = "region must match a valid GCP region format, e.g., us-central1."
+  }
 }
 
 variable "service_name" {
@@ -24,8 +32,6 @@ variable "repo_id" {
 variable "image_tag" {
   description = "Container image tag to deploy"
   type        = string
-  # no default on purpose – force explicit tagging
-  # default     = "latest"
   validation {
     condition     = length(var.image_tag) > 0 && var.image_tag != "latest"
     error_message = "image_tag must be a non-empty tag and not 'latest'."
@@ -35,6 +41,7 @@ variable "image_tag" {
 variable "impersonate_service_account" {
   description = "Email of SA to impersonate (e.g., weather-api-deployer@PROJECT.iam.gserviceaccount.com)"
   type        = string
+  sensitive   = true
 }
 
 variable "allow_unauthenticated" {
@@ -46,6 +53,10 @@ variable "allow_unauthenticated" {
 variable "github_repository" {
   description = "GitHub repo in format owner/repo"
   type        = string
+  validation {
+    condition     = can(regex("^[^/]+/[^/]+$", var.github_repository))
+    error_message = "github_repository must be in the format 'owner/repo'."
+  }
 }
 
 variable "manage_deployer_sa" {

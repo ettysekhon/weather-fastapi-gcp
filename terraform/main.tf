@@ -4,6 +4,10 @@ provider "google" {
   impersonate_service_account = var.impersonate_service_account
 }
 
+data "google_project" "this" {
+  project_id = var.project_id
+}
+
 # Enable required APIs
 resource "google_project_service" "required" {
   for_each = toset([
@@ -38,7 +42,7 @@ resource "google_service_account" "runtime" {
   display_name = "${var.service_name} runtime"
 }
 
-# Deployer Service Account for GitHub Actions
+# Deployer Service Account for GitHub Actions (optional)
 resource "google_service_account" "deployer" {
   count        = var.manage_deployer_sa ? 1 : 0
   project      = var.project_id
@@ -46,22 +50,17 @@ resource "google_service_account" "deployer" {
   display_name = "${var.service_name} deployer"
 }
 
-# IAM roles for deployer SA
-locals {
-  deployer_roles = [
+# IAM roles for deployer SA (using impersonate_service_account)
+resource "google_project_iam_member" "deployer_iam_roles" {
+  for_each = toset([
     "roles/run.admin",
     "roles/artifactregistry.admin",
     "roles/iam.serviceAccountUser",
-    "roles/iam.serviceAccountAdmin",
     "roles/serviceusage.serviceUsageAdmin",
-  ]
-}
-
-resource "google_project_iam_member" "deployer_iam_roles" {
-  for_each = toset(local.deployer_roles)
-  project  = var.project_id
-  role     = each.key
-  member   = "serviceAccount:${google_service_account.deployer.email}"
+  ])
+  project = var.project_id
+  role    = each.key
+  member  = "serviceAccount:${var.impersonate_service_account}"
 }
 
 # Workload Identity Pool for GitHub Actions
@@ -85,15 +84,11 @@ resource "google_iam_workload_identity_pool_provider" "github" {
   }
 }
 
-# Allow GitHub repo to impersonate the deployer SA
+# Allow GitHub Actions WIF to impersonate the deployer SA
 resource "google_service_account_iam_member" "github_impersonate" {
-  service_account_id = google_service_account.deployer.name
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${var.impersonate_service_account}"
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/projects/${data.google_project.project.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.github.workload_identity_pool_id}/attribute.repo/${var.github_repository}"
-}
-
-data "google_project" "project" {
-  project_id = var.project_id
+  member             = "principalSet://iam.googleapis.com/projects/${data.google_project.this.number}/locations/global/workloadIdentityPools/github-actions-pool/attribute.repository/${var.github_repository}"
 }
 
 # Cloud Run
@@ -101,7 +96,6 @@ locals {
   image_url = "${var.region}-docker.pkg.dev/${var.project_id}/${var.repo_id}/${var.service_name}:${var.image_tag}"
 }
 
-# Cloud Run v2 service (deletion_protection=false for easy destroy)
 resource "google_cloud_run_v2_service" "service" {
   name                = var.service_name
   location            = var.region
@@ -128,7 +122,7 @@ resource "google_cloud_run_v2_service" "service" {
   depends_on = [google_project_service.required]
 }
 
-# Public access
+# Public access (if allow_unauthenticated=true)
 resource "google_cloud_run_v2_service_iam_member" "public" {
   count    = var.allow_unauthenticated ? 1 : 0
   project  = var.project_id

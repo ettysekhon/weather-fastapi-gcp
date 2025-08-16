@@ -83,6 +83,14 @@ jobs:
             -var="allow_unauthenticated=true" \
             -var="github_repository=${{ github.repository }}"
 
-      - name: Show Cloud Run URL
+      - name: Capture Terraform Outputs
+        id: tf-outputs
         working-directory: ./terraform
-        run: terraform output cloud_run_uri
+        run: |
+          echo "cloud_run_uri=$(terraform output -raw cloud_run_uri)" >> "$GITHUB_OUTPUT"
+          echo "image_url=$(terraform output -raw image_url)" >> "$GITHUB_OUTPUT"
+
+      - name: Print Deployment Info
+        run: |
+          echo "Deployed to: ${{ steps.tf-outputs.outputs.cloud_run_uri }}"
+          echo "Image used: ${{ steps.tf-outputs.outputs.image_url }}"
