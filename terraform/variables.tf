@@ -39,9 +39,10 @@ variable "image_tag" {
 }
 
 variable "impersonate_service_account" {
-  description = "Email of SA to impersonate (e.g., weather-api-deployer@PROJECT.iam.gserviceaccount.com)"
+  description = "Optional Email of SA to impersonate (e.g., weather-api-deployer@PROJECT.iam.gserviceaccount.com)"
   type        = string
   sensitive   = true
+  default     = ""
 }
 
 variable "allow_unauthenticated" {

@@ -79,7 +79,6 @@ jobs:
             -var="service_name=${SERVICE_NAME}" \
             -var="repo_id=${REPO_ID}" \
             -var="image_tag=${IMAGE_TAG}" \
-            -var="impersonate_service_account=${DEPLOYER_SA}" \
             -var="allow_unauthenticated=true" \
             -var="github_repository=${{ github.repository }}"
 
