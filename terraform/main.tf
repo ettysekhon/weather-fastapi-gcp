@@ -1,7 +1,7 @@
 provider "google" {
   project                     = var.project_id
   region                      = var.region
-  impersonate_service_account = local.have_impersonator ? var.impersonate_service_account : null
+  impersonate_service_account = local.have_impersonator ? local.impersonator_sa : null
 }
 
 data "google_project" "this" {
@@ -9,8 +9,11 @@ data "google_project" "this" {
 }
 
 locals {
-  have_impersonator = length(trimspace(var.impersonate_service_account)) > 0
-  have_wif_binding  = local.have_impersonator && length(trimspace(var.github_repository)) > 0
+  impersonator_sa   = trimspace(nonsensitive(var.impersonate_service_account))
+  have_impersonator = length(local.impersonator_sa) > 0
+
+  gh_repo          = trimspace(nonsensitive(var.github_repository))
+  have_wif_binding = local.have_impersonator && length(local.gh_repo) > 0
 }
 
 # Enable required APIs
@@ -62,11 +65,11 @@ resource "google_project_iam_member" "deployer_iam_roles" {
     "roles/artifactregistry.admin",
     "roles/iam.serviceAccountUser",
     "roles/serviceusage.serviceUsageAdmin",
-  ]) : toset([])
+  ]) : toset([]) # must be an empty set, not {}
 
   project = var.project_id
   role    = each.key
-  member  = "serviceAccount:${var.impersonate_service_account}"
+  member  = "serviceAccount:${local.impersonator_sa}"
 }
 # Workload Identity Pool for GitHub Actions
 resource "google_iam_workload_identity_pool" "github" {
@@ -92,9 +95,9 @@ resource "google_iam_workload_identity_pool_provider" "github" {
 # WIF can impersonate the SA (only when both are set)
 resource "google_service_account_iam_member" "github_impersonate" {
   count              = local.have_wif_binding ? 1 : 0
-  service_account_id = "projects/${var.project_id}/serviceAccounts/${var.impersonate_service_account}"
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${local.impersonator_sa}"
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/projects/${data.google_project.this.number}/locations/global/workloadIdentityPools/github-actions-pool/attribute.repository/${var.github_repository}"
+  member             = "principalSet://iam.googleapis.com/projects/${data.google_project.this.number}/locations/global/workloadIdentityPools/github-actions-pool/attribute.repository/${local.gh_repo}"
 }
 
 # Cloud Run
