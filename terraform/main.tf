@@ -72,6 +72,8 @@ resource "google_project_iam_member" "deployer_iam_roles" {
     "roles/iam.serviceAccountUser",
     "roles/serviceusage.serviceUsageAdmin",
     "roles/iam.serviceAccountTokenCreator",
+    "roles/resourcemanager.projectIamAdmin",
+    "roles/iam.workloadIdentityPoolAdmin",
   ]) : toset([])
 
   project = var.project_id
@@ -79,11 +81,10 @@ resource "google_project_iam_member" "deployer_iam_roles" {
   member  = "serviceAccount:${local.impersonator_sa}"
 }
 
-# Workload Identity Pool for GitHub Actions
-resource "google_iam_workload_identity_pool" "github" {
+# Workload Identity Pool for GitHub Actions (reference existing pool)
+data "google_iam_workload_identity_pool" "github" {
   project                   = data.google_project.this.number
   workload_identity_pool_id = "github-actions-pool"
-  display_name              = "GitHub Actions Pool"
 }
 
 # Workload Identity Pool Provider for GitHub OIDC
@@ -107,7 +108,7 @@ resource "google_service_account_iam_member" "github_impersonate" {
   count              = local.have_wif_binding ? 1 : 0
   service_account_id = "projects/${var.project_id}/serviceAccounts/${local.impersonator_sa}"
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/projects/${data.google_project.this.number}/locations/global/workloadIdentityPools/github-actions-pool/attribute.repository/${local.gh_repo}"
+  member             = "principalSet://iam.googleapis.com/projects/${data.google_project.this.number}/locations/global/workloadIdentityPools/${data.google_iam_workload_identity_pool.github.workload_identity_pool_id}/attribute.repository/${local.gh_repo}"
 }
 
 # Cloud Run
