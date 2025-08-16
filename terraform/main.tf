@@ -71,6 +71,7 @@ resource "google_project_iam_member" "deployer_iam_roles" {
     "roles/artifactregistry.admin",
     "roles/iam.serviceAccountUser",
     "roles/serviceusage.serviceUsageAdmin",
+    "roles/iam.serviceAccountTokenCreator",
   ]) : toset([])
 
   project = var.project_id
@@ -88,7 +89,7 @@ resource "google_iam_workload_identity_pool" "github" {
 # Workload Identity Pool Provider for GitHub OIDC
 resource "google_iam_workload_identity_pool_provider" "github" {
   project                            = data.google_project.this.number
-  workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
+  workload_identity_pool_id          = data.google_iam_workload_identity_pool.github.workload_identity_pool_id
   workload_identity_pool_provider_id = "github-provider"
   display_name                       = "GitHub Provider"
   attribute_mapping = {
