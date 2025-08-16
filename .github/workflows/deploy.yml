@@ -70,43 +70,14 @@ jobs:
             "repo_id": "${REPO_ID}",
             "image_tag": "${IMAGE_TAG}",
             "allow_unauthenticated": true,
-            "github_repository": "${{ github.repository }}"
+            "github_repository": "${{ github.repository }}",
+            "impersonate_service_account": "${DEPLOYER_SA}"
           }
           EOF
 
       - name: Terraform Init
         working-directory: ./terraform
-        run: terraform init
-
-      - name: Terraform Imports (idempotent)
-        working-directory: ./terraform
-        run: |
-          set -euo pipefail
-
-          # Artifact Registry Repo
-          REPO_PATH="projects/${PROJECT_ID}/locations/${REGION}/repositories/${REPO_ID}"
-          terraform state show google_artifact_registry_repository.repo >/dev/null 2>&1 || \
-            terraform import -input=false google_artifact_registry_repository.repo "${REPO_PATH}" || true
-
-          # Runtime Service Account
-          RUNTIME_SA_PATH="projects/${PROJECT_ID}/serviceAccounts/${SERVICE_NAME}-runtime@${PROJECT_ID}.iam.gserviceaccount.com"
-          terraform state show google_service_account.runtime >/dev/null 2>&1 || \
-            terraform import -input=false google_service_account.runtime "${RUNTIME_SA_PATH}" || true
-
-          # Workload Identity Pool
-          POOL_PATH="projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/github-actions-pool"
-          terraform state show google_iam_workload_identity_pool.github >/dev/null 2>&1 || \
-            terraform import -input=false google_iam_workload_identity_pool.github "${POOL_PATH}" || true
-
-          # Workload Identity Provider
-          PROVIDER_PATH="${POOL_PATH}/providers/github-provider"
-          terraform state show google_iam_workload_identity_pool_provider.github >/dev/null 2>&1 || \
-            terraform import -input=false google_iam_workload_identity_pool_provider.github "${PROVIDER_PATH}" || true
-
-          # Cloud Run Service
-          CLOUD_RUN_PATH="projects/${PROJECT_ID}/locations/${REGION}/services/${SERVICE_NAME}"
-          terraform state show google_cloud_run_v2_service.service >/dev/null 2>&1 || \
-            terraform import -input=false google_cloud_run_v2_service.service "${CLOUD_RUN_PATH}" || true
+        run: terraform init -backend-config="bucket=${PROJECT_ID}-tf-state"
 
       - name: Terraform Apply
         working-directory: ./terraform
@@ -115,20 +86,6 @@ jobs:
           TF_IN_AUTOMATION: "true"
         run: |
           set -euo pipefail
-          cat > ci.auto.tfvars.json <<EOF
-          {
-            "project_id": "${PROJECT_ID}",
-            "region": "${REGION}",
-            "service_name": "${SERVICE_NAME}",
-            "repo_id": "${REPO_ID}",
-            "image_tag": "${IMAGE_TAG}",
-            "allow_unauthenticated": true,
-            "github_repository": "${{ github.repository }}"
-          }
-          EOF
-
-          # If you want to pass an impersonation SA in CI, uncomment the next line:
-          # jq --arg sa "${DEPLOYER_SA}" '. + {impersonate_service_account: $sa}' ci.auto.tfvars.json > ci.auto.tfvars.json.tmp && mv ci.auto.tfvars.json.tmp ci.auto.tfvars.json
 
           terraform plan  -input=false
           terraform apply -input=false -auto-approve

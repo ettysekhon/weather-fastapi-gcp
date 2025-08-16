@@ -4,6 +4,12 @@ provider "google" {
   impersonate_service_account = local.have_impersonator ? local.impersonator_sa : null
 }
 
+terraform {
+  backend "gcs" {
+    prefix = "terraform/state"
+  }
+}
+
 data "google_project" "this" {
   project_id = var.project_id
 }
@@ -74,12 +80,14 @@ resource "google_project_iam_member" "deployer_iam_roles" {
 
 # Workload Identity Pool for GitHub Actions
 resource "google_iam_workload_identity_pool" "github" {
+  project                   = data.google_project.this.number
   workload_identity_pool_id = "github-actions-pool"
   display_name              = "GitHub Actions Pool"
 }
 
 # Workload Identity Pool Provider for GitHub OIDC
 resource "google_iam_workload_identity_pool_provider" "github" {
+  project                            = data.google_project.this.number
   workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
   workload_identity_pool_provider_id = "github-provider"
   display_name                       = "GitHub Provider"
