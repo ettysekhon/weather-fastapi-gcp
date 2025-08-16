@@ -61,14 +61,35 @@ jobs:
         working-directory: ./terraform
         run: terraform init
 
-      - name: Terraform Import pre-existing AR repo (idempotent)
+      - name: Terraform Imports (idempotent)
         working-directory: ./terraform
         run: |
-          set -euo pipefail
+          set -x -euo pipefail
+
+          # Artifact Registry Repo
           REPO_PATH="projects/${PROJECT_ID}/locations/${REGION}/repositories/${REPO_ID}"
-          # Import if not already in state; ignore if it is
           terraform state show google_artifact_registry_repository.repo >/dev/null 2>&1 || \
             terraform import google_artifact_registry_repository.repo "${REPO_PATH}" || true
+
+          # Runtime Service Account
+          RUNTIME_SA_PATH="projects/${PROJECT_ID}/serviceAccounts/${SERVICE_NAME}-runtime@${PROJECT_ID}.iam.gserviceaccount.com"
+          terraform state show google_service_account.runtime >/dev/null 2>&1 || \
+            terraform import google_service_account.runtime "${RUNTIME_SA_PATH}" || true
+
+          # Workload Identity Pool (avoids 403 by importing instead of creating)
+          POOL_PATH="projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/github-actions-pool"
+          terraform state show google_iam_workload_identity_pool.github >/dev/null 2>&1 || \
+            terraform import google_iam_workload_identity_pool.github "${POOL_PATH}" || true
+
+          # Workload Identity Provider
+          PROVIDER_PATH="${POOL_PATH}/providers/github-provider"
+          terraform state show google_iam_workload_identity_pool_provider.github >/dev/null 2>&1 || \
+            terraform import google_iam_workload_identity_pool_provider.github "${PROVIDER_PATH}" || true
+
+          # Cloud Run Service (if it exists from prior deploys)
+          CLOUD_RUN_PATH="projects/${PROJECT_ID}/locations/${REGION}/services/${SERVICE_NAME}"
+          terraform state show google_cloud_run_v2_service.service >/dev/null 2>&1 || \
+            terraform import google_cloud_run_v2_service.service "${CLOUD_RUN_PATH}" || true
 
       - name: Terraform Apply
         working-directory: ./terraform
