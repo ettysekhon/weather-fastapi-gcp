@@ -73,17 +73,27 @@ jobs:
       - name: Terraform Apply
         working-directory: ./terraform
         shell: bash
+        env:
+          TF_IN_AUTOMATION: "true"
         run: |
           set -euo pipefail
-          terraform apply -auto-approve \
-            -var="project_id=${PROJECT_ID}" \
-            -var="region=${REGION}" \
-            -var="service_name=${SERVICE_NAME}" \
-            -var="repo_id=${REPO_ID}" \
-            -var="image_tag=${IMAGE_TAG}" \
-            -var="allow_unauthenticated=true" \
-            -var="github_repository=${{ github.repository }}"
-          # NOTE: no impersonate var here in CI (WIF creds are used directly)
+          cat > ci.auto.tfvars.json <<EOF
+          {
+            "project_id": "${PROJECT_ID}",
+            "region": "${REGION}",
+            "service_name": "${SERVICE_NAME}",
+            "repo_id": "${REPO_ID}",
+            "image_tag": "${IMAGE_TAG}",
+            "allow_unauthenticated": true,
+            "github_repository": "${{ github.repository }}"
+          }
+          EOF
+
+          # If you want to pass an impersonation SA in CI, uncomment the next line:
+          # jq --arg sa "${DEPLOYER_SA}" '. + {impersonate_service_account: $sa}' ci.auto.tfvars.json > ci.auto.tfvars.json.tmp && mv ci.auto.tfvars.json.tmp ci.auto.tfvars.json
+
+          terraform plan  -input=false
+          terraform apply -input=false -auto-approve
 
       - name: Capture Terraform Outputs
         id: tf-outputs

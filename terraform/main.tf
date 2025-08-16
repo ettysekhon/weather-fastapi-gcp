@@ -1,7 +1,7 @@
 provider "google" {
   project                     = var.project_id
   region                      = var.region
-  impersonate_service_account = var.impersonate_service_account != "" ? var.impersonate_service_account : null
+  impersonate_service_account = local.have_impersonator ? var.impersonate_service_account : null
 }
 
 data "google_project" "this" {
@@ -9,8 +9,8 @@ data "google_project" "this" {
 }
 
 locals {
-  have_impersonator = var.impersonate_service_account != ""
-  have_wif_binding  = local.have_impersonator && var.github_repository != ""
+  have_impersonator = length(trimspace(var.impersonate_service_account)) > 0
+  have_wif_binding  = local.have_impersonator && length(trimspace(var.github_repository)) > 0
 }
 
 # Enable required APIs
@@ -62,7 +62,7 @@ resource "google_project_iam_member" "deployer_iam_roles" {
     "roles/artifactregistry.admin",
     "roles/iam.serviceAccountUser",
     "roles/serviceusage.serviceUsageAdmin",
-  ]) : {}
+  ]) : toset([])
 
   project = var.project_id
   role    = each.key
